@@ -11,20 +11,27 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import NeuralMeshVisualizer from '@/components/NeuralMeshVisualizer';
 import ResonanceOrchestrator from '@/lib/orchestrator';
+import MetaOrchestrator from '@/lib/meta-orchestrator';
+import MetaOrchestratorPanel from '@/components/MetaOrchestratorPanel';
 
 export default function Home() {
   const [orchestrator, setOrchestrator] = useState<ResonanceOrchestrator | null>(null);
+  const [metaOrchestrator, setMetaOrchestrator] = useState<MetaOrchestrator | null>(null);
   const [userId, setUserId] = useState('user-' + Math.random().toString(36).substr(2, 9));
   const [input, setInput] = useState('');
   const [response, setResponse] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [attitude, setAttitude] = useState<'curious' | 'playful' | 'serious' | 'mystical' | 'analytical'>('curious');
   const [, setUpdateTrigger] = useState(0);
+  const [showMetaPanel, setShowMetaPanel] = useState(false);
 
-  // Initialize orchestrator
+  // Initialize orchestrators
   useEffect(() => {
     const orch = new ResonanceOrchestrator('https://synthia-server.onrender.com');
     setOrchestrator(orch);
+    
+    const metaOrch = new MetaOrchestrator();
+    setMetaOrchestrator(metaOrch);
   }, []);
 
   // Trigger re-renders to show autonomous updates
@@ -75,6 +82,15 @@ export default function Home() {
     );
   }
 
+  if (showMetaPanel && metaOrchestrator) {
+    return (
+      <MetaOrchestratorPanel 
+        metaOrchestrator={metaOrchestrator}
+        onBack={() => setShowMetaPanel(false)}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-950 text-cyan-100 p-4">
       <div className="max-w-7xl mx-auto">
@@ -111,6 +127,14 @@ export default function Home() {
 
           {/* Control Panel */}
           <div className="flex flex-col gap-4">
+            {/* Meta-Orchestrator Button */}
+            <Button
+              onClick={() => setShowMetaPanel(true)}
+              className="w-full bg-purple-600 text-white hover:bg-purple-700 font-bold"
+            >
+              📦 Meta-Orchestrator
+            </Button>
+
             {/* Attitude Selector */}
             <Card className="bg-slate-900 border-cyan-500 p-4">
               <h3 className="text-cyan-400 font-bold mb-3">Personality Mode</h3>
