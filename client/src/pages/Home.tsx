@@ -19,11 +19,20 @@ export default function Home() {
   const [response, setResponse] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [attitude, setAttitude] = useState<'curious' | 'playful' | 'serious' | 'mystical' | 'analytical'>('curious');
+  const [, setUpdateTrigger] = useState(0);
 
   // Initialize orchestrator
   useEffect(() => {
     const orch = new ResonanceOrchestrator('https://synthia-server.onrender.com');
     setOrchestrator(orch);
+  }, []);
+
+  // Trigger re-renders to show autonomous updates
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setUpdateTrigger(prev => prev + 1);
+    }, 500);
+    return () => clearInterval(interval);
   }, []);
 
   // Handle input submission
@@ -148,6 +157,30 @@ export default function Home() {
                 <div className="flex justify-between">
                   <span>Attitude:</span>
                   <span className="text-cyan-300 capitalize">{attitude}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Autonomous:</span>
+                  <span className={orchestrator.isAutonomous() ? 'text-green-400' : 'text-red-400'}>
+                    {orchestrator.isAutonomous() ? '✓ Running' : '✗ Stopped'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Ticks:</span>
+                  <span className="text-cyan-300">
+                    {orchestrator.getTickCount()}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Attractors:</span>
+                  <span className="text-cyan-300">
+                    {orchestrator.getAttractors().size}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Learned Paths:</span>
+                  <span className="text-cyan-300">
+                    {orchestrator.getConnectionWeights().size}
+                  </span>
                 </div>
               </div>
             </Card>

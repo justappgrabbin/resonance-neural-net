@@ -91,6 +91,12 @@ export class ResonanceOrchestrator {
     attitude: 'curious' | 'playful' | 'serious' | 'mystical' | 'analytical';
     morphState: number; // 0-1, visual morphing state
   };
+  private tickInterval: number | undefined;
+  private isRunning: boolean = false;
+  private tickCount: number = 0;
+  private connectionWeights: Map<string, number> = new Map(); // Learning: connection strength
+  private pathUsageHistory: Map<string, number> = new Map(); // Learning: path frequency
+  private attractors: Map<string, number> = new Map(); // Stable patterns
 
   constructor(apiBase: string = 'http://localhost:10000') {
     this.apiBase = apiBase;
@@ -107,6 +113,253 @@ export class ResonanceOrchestrator {
       morphState: 0,
     };
     this.initializeMesh();
+    this.startAutonomousLoop();
+  }
+
+  /**
+   * Start the autonomous heartbeat loop
+   * Runs continuously, even without user input
+   */
+  private startAutonomousLoop(): void {
+    if (this.isRunning) return;
+    this.isRunning = true;
+    
+    this.tickInterval = window.setInterval(() => {
+      this.tick();
+    }, 50); // ~20 ticks per second for smooth morphing
+  }
+
+  /**
+   * Stop the autonomous loop
+   */
+  public stopAutonomousLoop(): void {
+    if (this.tickInterval !== undefined) {
+      clearInterval(this.tickInterval);
+      this.isRunning = false;
+    }
+  }
+
+  /**
+   * Main tick function - runs continuously
+   * This is the heartbeat that drives all autonomous morphing
+   */
+  private tick(): void {
+    this.tickCount++;
+
+    // 1. Update all node states
+    this.mesh.forEach((nodeState) => {
+      this.updateNodeState(nodeState);
+    });
+
+    // 2. Propagate signals between nodes
+    this.propagateSignals();
+
+    // 3. Apply morphing physics
+    this.applyMorphingPhysics();
+
+    // 4. Decay old states
+    this.decayStates();
+
+    // 5. Introduce small noise for exploration
+    this.introduceNoise();
+
+    // 6. Update global coherence
+    this.updateGlobalCoherence();
+
+    // 7. Learn from patterns
+    this.learnFromPatterns();
+  }
+
+  /**
+   * Update individual node state based on morphing physics
+   */
+  private updateNodeState(nodeState: NodeState): void {
+    // Tension accumulation from internal contradictions
+    const internalPressure = this.calculateInternalPressure(nodeState);
+    nodeState.tension = Math.min(1, nodeState.tension + internalPressure * 0.01);
+
+    // State transitions based on tension
+    if (nodeState.tension > 0.85 && nodeState.baseState === 'STABLE') {
+      nodeState.baseState = 'CHANGING';
+    } else if (nodeState.tension > 0.95 && nodeState.baseState === 'CHANGING') {
+      // Dzhanibekov flip - spontaneous reorientation
+      nodeState.baseState = 'RESOLVING';
+      nodeState.address.line = ((nodeState.address.line % 6) + 1) as 1 | 2 | 3 | 4 | 5 | 6;
+      nodeState.tension = 0.3; // Reset tension after flip
+    } else if (nodeState.baseState === 'RESOLVING' && nodeState.tension < 0.5) {
+      nodeState.baseState = 'STABLE';
+    }
+
+    // Coherence decay over time
+    nodeState.coherence = Math.max(0.1, nodeState.coherence - 0.001);
+
+    // Resonance activation from neighbors
+    const neighborResonance = this.calculateNeighborResonance(nodeState);
+    if (neighborResonance > 0.7) {
+      nodeState.baseState = 'RESONANT';
+      nodeState.coherence = Math.min(1, nodeState.coherence + 0.05);
+    }
+
+    nodeState.lastUpdated = Date.now();
+  }
+
+  /**
+   * Calculate internal pressure from contradictions
+   */
+  private calculateInternalPressure(nodeState: NodeState): number {
+    let pressure = 0;
+
+    // Tension from modifications being active
+    const activeModifications = nodeState.modifications.filter(m => m.active).length;
+    pressure += activeModifications * 0.1;
+
+    // Tension from high sense intensity
+    const avgSenseIntensity = nodeState.senses.reduce((sum, s) => sum + s.intensity, 0) / nodeState.senses.length;
+    pressure += avgSenseIntensity * 0.05;
+
+    // Tension from unresolved connections
+    const unconnectedPoints = nodeState.connectingPoints.filter(cp => cp.connected === null).length;
+    pressure += (unconnectedPoints / 6) * 0.08;
+
+    return pressure;
+  }
+
+  /**
+   * Calculate resonance from neighboring nodes
+   */
+  private calculateNeighborResonance(nodeState: NodeState): number {
+    let totalResonance = 0;
+    let neighborCount = 0;
+
+    this.mesh.forEach((otherNode) => {
+      if (otherNode === nodeState) return;
+
+      // Only check nearby nodes (same layer)
+      if (otherNode.address.layer === nodeState.address.layer) {
+        const resonanceScore = this.calculateResonanceScore(nodeState.address, otherNode.address);
+        if (resonanceScore > 1.5) {
+          totalResonance += resonanceScore;
+          neighborCount++;
+        }
+      }
+    });
+
+    return neighborCount > 0 ? totalResonance / neighborCount : 0;
+  }
+
+  /**
+   * Propagate signals between connected nodes
+   */
+  private propagateSignals(): void {
+    const signalMap = new Map<string, number>();
+
+    this.mesh.forEach((nodeState, key) => {
+      // Each node broadcasts its state
+      const signal = nodeState.coherence * (nodeState.baseState === 'RESONANT' ? 1.5 : 1);
+      signalMap.set(key, signal);
+    });
+
+    // Apply signals to connections
+    this.mesh.forEach((nodeState) => {
+      nodeState.connectingPoints.forEach((point) => {
+        if (point.connected) {
+          const connectedKey = this.addressToKey(point.connected);
+          const signal = signalMap.get(connectedKey) || 0;
+          point.strength = Math.min(1, point.strength + signal * 0.01);
+        }
+      });
+    });
+  }
+
+  /**
+   * Apply morphing physics - state transitions
+   */
+  private applyMorphingPhysics(): void {
+    this.mesh.forEach((nodeState) => {
+      // Nodes in CHANGING state morph their modifications
+      if (nodeState.baseState === 'CHANGING') {
+        nodeState.modifications.forEach((mod) => {
+          mod.value += (Math.random() - 0.5) * 0.1; // Random walk
+          mod.value = Math.max(0, Math.min(1, mod.value));
+        });
+      }
+
+      // Nodes in RESONANT state strengthen their senses
+      if (nodeState.baseState === 'RESONANT') {
+        nodeState.senses.forEach((sense) => {
+          sense.intensity = Math.min(1, sense.intensity + 0.02);
+        });
+      }
+
+      // Nodes in DORMANT state slowly wake up
+      if (nodeState.baseState === 'DORMANT') {
+        nodeState.coherence = Math.min(0.5, nodeState.coherence + 0.001);
+      }
+    });
+  }
+
+  /**
+   * Decay states over time (entropy)
+   */
+  private decayStates(): void {
+    this.mesh.forEach((nodeState) => {
+      // Tension decays naturally
+      nodeState.tension = Math.max(0, nodeState.tension - 0.001);
+
+      // Sense intensity decays
+      nodeState.senses.forEach((sense) => {
+        sense.intensity = Math.max(0, sense.intensity - 0.002);
+      });
+
+      // Connection strength decays
+      nodeState.connectingPoints.forEach((point) => {
+        point.strength = Math.max(0, point.strength - 0.001);
+      });
+    });
+  }
+
+  /**
+   * Introduce small noise for exploration
+   */
+  private introduceNoise(): void {
+    // Every 100 ticks, introduce some random perturbations
+    if (this.tickCount % 100 === 0) {
+      const randomNodeIndex = Math.floor(Math.random() * this.mesh.size);
+      let index = 0;
+      this.mesh.forEach((nodeState) => {
+        if (index === randomNodeIndex) {
+          nodeState.tension += Math.random() * 0.1;
+          nodeState.senses[Math.floor(Math.random() * nodeState.senses.length)].intensity += Math.random() * 0.2;
+        }
+        index++;
+      });
+    }
+  }
+
+  /**
+   * Learn from patterns - strengthen frequently used paths
+   */
+  private learnFromPatterns(): void {
+    // Every 50 ticks, update learning
+    if (this.tickCount % 50 === 0) {
+      this.mesh.forEach((nodeState, key) => {
+        // Track which states are stable (attractors)
+        if (nodeState.baseState === 'STABLE' && nodeState.coherence > 0.6) {
+          const attractorKey = `${nodeState.address.mesh}_${nodeState.address.layer}_${nodeState.address.center}`;
+          const currentCount = this.attractors.get(attractorKey) || 0;
+          this.attractors.set(attractorKey, currentCount + 1);
+        }
+
+        // Strengthen connections between resonating nodes
+        nodeState.connectingPoints.forEach((point) => {
+          if (point.connected && nodeState.baseState === 'RESONANT') {
+            const connectionKey = `${key}_${this.addressToKey(point.connected)}`;
+            const currentWeight = this.connectionWeights.get(connectionKey) || 1;
+            this.connectionWeights.set(connectionKey, currentWeight * 1.01); // Strengthen
+          }
+        });
+      });
+    }
   }
 
   /**
@@ -506,6 +759,34 @@ export class ResonanceOrchestrator {
    */
   public getMorphState(): number {
     return this.personality.morphState;
+  }
+
+  /**
+   * Get tick count (for debugging/monitoring)
+   */
+  public getTickCount(): number {
+    return this.tickCount;
+  }
+
+  /**
+   * Get attractors (stable patterns that have emerged)
+   */
+  public getAttractors(): Map<string, number> {
+    return this.attractors;
+  }
+
+  /**
+   * Get connection weights (learned relationships)
+   */
+  public getConnectionWeights(): Map<string, number> {
+    return this.connectionWeights;
+  }
+
+  /**
+   * Check if system is running autonomously
+   */
+  public isAutonomous(): boolean {
+    return this.isRunning;
   }
 }
 
