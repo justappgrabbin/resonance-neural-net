@@ -1,25 +1,207 @@
-import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
-import { Streamdown } from 'streamdown';
-
 /**
- * All content in this page are only for example, replace with your own feature implementation
- * When building pages, remember your instructions in Frontend Best Practices, Design Guide and Common Pitfalls
+ * RESONANCE NEURAL NETWORK - HOME PAGE
+ * 
+ * The main interface for the dynamic neural network orchestrator.
+ * Displays the 5-mesh 13-layer structure with real-time visualization,
+ * coherence monitoring, and interactive personality system.
  */
+
+import React, { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import NeuralMeshVisualizer from '@/components/NeuralMeshVisualizer';
+import ResonanceOrchestrator from '@/lib/orchestrator';
+
 export default function Home() {
-  // If theme is switchable in App.tsx, we can implement theme toggling like this:
-  // const { theme, toggleTheme } = useTheme();
+  const [orchestrator, setOrchestrator] = useState<ResonanceOrchestrator | null>(null);
+  const [userId, setUserId] = useState('user-' + Math.random().toString(36).substr(2, 9));
+  const [input, setInput] = useState('');
+  const [response, setResponse] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [attitude, setAttitude] = useState<'curious' | 'playful' | 'serious' | 'mystical' | 'analytical'>('curious');
+
+  // Initialize orchestrator
+  useEffect(() => {
+    const orch = new ResonanceOrchestrator('https://synthia-server.onrender.com');
+    setOrchestrator(orch);
+  }, []);
+
+  // Handle input submission
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!orchestrator || !input.trim()) return;
+
+    setLoading(true);
+    try {
+      const result = await orchestrator.routeData(input, userId);
+      setResponse(result);
+      setInput('');
+    } catch (error) {
+      console.error('Error routing data:', error);
+      setResponse({
+        response: 'The pattern is too complex to resolve right now. Try again.',
+        error: true,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle attitude change
+  const handleAttitudeChange = (newAttitude: 'curious' | 'playful' | 'serious' | 'mystical' | 'analytical') => {
+    setAttitude(newAttitude);
+    if (orchestrator) {
+      orchestrator.setAttitude(newAttitude);
+    }
+  };
+
+  if (!orchestrator) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-cyan-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-4xl font-bold mb-4">🌌 Initializing Resonance Engine...</div>
+          <div className="text-cyan-400">Building the neural mesh...</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <main>
-        {/* Example: lucide-react for icons */}
-        <Loader2 className="animate-spin" />
-        Example Page
-        {/* Example: Streamdown for markdown rendering */}
-        <Streamdown>Any **markdown** content</Streamdown>
-        <Button variant="default">Example Button</Button>
-      </main>
+    <div className="min-h-screen bg-slate-950 text-cyan-100 p-4">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-5xl font-bold mb-2 text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">
+            ◆ RESONANCE NEURAL NETWORK ◆
+          </h1>
+          <p className="text-cyan-400 font-mono">
+            5 Meshes • 13 Layers • 9 Centers • 64 Nodes • 22+ Trillion States
+          </p>
+          <p className="text-cyan-300 text-sm mt-2">
+            User ID: {userId}
+          </p>
+        </div>
+
+        {/* Main Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+          {/* Visualizer - Takes 2 columns on large screens */}
+          <div className="lg:col-span-2">
+            <Card className="bg-slate-900 border-cyan-500 p-4">
+              <div className="mb-4">
+                <h2 className="text-xl font-bold text-cyan-400 mb-2">Neural Mesh Visualization</h2>
+                <p className="text-cyan-300 text-sm">Click on nodes to inspect their state</p>
+              </div>
+              <NeuralMeshVisualizer 
+                orchestrator={orchestrator} 
+                width={800}
+                height={600}
+                interactive={true}
+              />
+            </Card>
+          </div>
+
+          {/* Control Panel */}
+          <div className="flex flex-col gap-4">
+            {/* Attitude Selector */}
+            <Card className="bg-slate-900 border-cyan-500 p-4">
+              <h3 className="text-cyan-400 font-bold mb-3">Personality Mode</h3>
+              <div className="space-y-2">
+                {(['curious', 'playful', 'serious', 'mystical', 'analytical'] as const).map((att) => (
+                  <Button
+                    key={att}
+                    onClick={() => handleAttitudeChange(att)}
+                    variant={attitude === att ? 'default' : 'outline'}
+                    className={`w-full capitalize ${
+                      attitude === att
+                        ? 'bg-cyan-500 text-slate-950'
+                        : 'border-cyan-500 text-cyan-400 hover:bg-cyan-500 hover:text-slate-950'
+                    }`}
+                  >
+                    {att}
+                  </Button>
+                ))}
+              </div>
+            </Card>
+
+            {/* Stats */}
+            <Card className="bg-slate-900 border-cyan-500 p-4">
+              <h3 className="text-cyan-400 font-bold mb-3">System State</h3>
+              <div className="space-y-2 text-sm font-mono">
+                <div className="flex justify-between">
+                  <span>Coherence:</span>
+                  <span className="text-cyan-300">
+                    {(orchestrator.getGlobalCoherence() * 100).toFixed(1)}%
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Morph State:</span>
+                  <span className="text-cyan-300">
+                    {(orchestrator.getMorphState() * 100).toFixed(1)}%
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Active Nodes:</span>
+                  <span className="text-cyan-300">
+                    {orchestrator.getAllMeshNodes().length}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Attitude:</span>
+                  <span className="text-cyan-300 capitalize">{attitude}</span>
+                </div>
+              </div>
+            </Card>
+
+            {/* Response Display */}
+            {response && (
+              <Card className="bg-slate-900 border-cyan-500 p-4">
+                <h3 className="text-cyan-400 font-bold mb-2">Oracle Response</h3>
+                <div className="text-sm space-y-2">
+                  <div className="text-cyan-300">
+                    {response.response}
+                  </div>
+                  {response.address && (
+                    <div className="text-xs text-cyan-500 font-mono">
+                      Address: M{response.address.mesh}L{response.address.layer}C{response.address.center}
+                    </div>
+                  )}
+                </div>
+              </Card>
+            )}
+          </div>
+        </div>
+
+        {/* Input Panel */}
+        <Card className="bg-slate-900 border-cyan-500 p-6">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-cyan-400 font-bold mb-2">
+                Query the Neural Network
+              </label>
+              <textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Ask anything... The network will find the resonance..."
+                className="w-full bg-slate-800 border border-cyan-500 rounded-lg p-3 text-cyan-100 placeholder-cyan-600 focus:outline-none focus:ring-2 focus:ring-cyan-500 font-mono text-sm"
+                rows={3}
+              />
+            </div>
+            <Button
+              type="submit"
+              disabled={loading || !input.trim()}
+              className="w-full bg-cyan-500 hover:bg-cyan-600 text-slate-950 font-bold"
+            >
+              {loading ? '◆ Routing Through Mesh ◆' : '◆ Send Query ◆'}
+            </Button>
+          </form>
+        </Card>
+
+        {/* Info Footer */}
+        <div className="mt-8 text-center text-cyan-600 text-xs font-mono">
+          <p>Resonance Neural Network • Orchestrator Engine • Synthia Server Integration</p>
+          <p>The intelligence that brings it all together</p>
+        </div>
+      </div>
     </div>
   );
 }
