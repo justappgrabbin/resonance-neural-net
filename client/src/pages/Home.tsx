@@ -12,11 +12,14 @@ import { Card } from '@/components/ui/card';
 import NeuralMeshVisualizer from '@/components/NeuralMeshVisualizer';
 import ResonanceOrchestrator from '@/lib/orchestrator';
 import MetaOrchestrator from '@/lib/meta-orchestrator';
+import AutonomousAgent from '@/lib/autonomous-agent';
 import MetaOrchestratorPanel from '@/components/MetaOrchestratorPanel';
+import AutonomousAgentInterface from '@/components/AutonomousAgentInterface';
 
 export default function Home() {
   const [orchestrator, setOrchestrator] = useState<ResonanceOrchestrator | null>(null);
   const [metaOrchestrator, setMetaOrchestrator] = useState<MetaOrchestrator | null>(null);
+  const [agent, setAgent] = useState<AutonomousAgent | null>(null);
   const [userId, setUserId] = useState('user-' + Math.random().toString(36).substr(2, 9));
   const [input, setInput] = useState('');
   const [response, setResponse] = useState<any>(null);
@@ -24,14 +27,18 @@ export default function Home() {
   const [attitude, setAttitude] = useState<'curious' | 'playful' | 'serious' | 'mystical' | 'analytical'>('curious');
   const [, setUpdateTrigger] = useState(0);
   const [showMetaPanel, setShowMetaPanel] = useState(false);
+  const [showAgentInterface, setShowAgentInterface] = useState(false);
 
-  // Initialize orchestrators
+  // Initialize orchestrators and agent
   useEffect(() => {
     const orch = new ResonanceOrchestrator('https://synthia-server.onrender.com');
     setOrchestrator(orch);
     
     const metaOrch = new MetaOrchestrator();
     setMetaOrchestrator(metaOrch);
+    
+    const autonomousAgent = new AutonomousAgent();
+    setAgent(autonomousAgent);
   }, []);
 
   // Trigger re-renders to show autonomous updates
@@ -82,6 +89,12 @@ export default function Home() {
     );
   }
 
+  if (showAgentInterface && agent) {
+    return (
+      <AutonomousAgentInterface agent={agent} />
+    );
+  }
+
   if (showMetaPanel && metaOrchestrator) {
     return (
       <MetaOrchestratorPanel 
@@ -127,6 +140,14 @@ export default function Home() {
 
           {/* Control Panel */}
           <div className="flex flex-col gap-4">
+            {/* Autonomous Agent Button */}
+            <Button
+              onClick={() => setShowAgentInterface(true)}
+              className="w-full bg-pink-600 text-white hover:bg-pink-700 font-bold animate-pulse"
+            >
+              🤖 Autonomous Agent
+            </Button>
+
             {/* Meta-Orchestrator Button */}
             <Button
               onClick={() => setShowMetaPanel(true)}
