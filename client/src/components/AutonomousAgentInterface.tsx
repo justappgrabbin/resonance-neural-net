@@ -13,7 +13,9 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import AutonomousAgent, { UIState, SensoryState, Goal, Explanation } from '@/lib/autonomous-agent';
-import { Mic, Send, Upload, Globe, BookOpen, Zap, ChevronDown } from 'lucide-react';
+import { Mic, Send, Upload, Globe, BookOpen, Zap, ChevronDown, Gamepad2 } from 'lucide-react';
+import EnhancedUIPanel from './EnhancedUIPanel';
+import SimsGame from './SimsGame';
 
 interface AutonomousAgentInterfaceProps {
   agent: AutonomousAgent;
@@ -27,7 +29,8 @@ export default function AutonomousAgentInterface({ agent }: AutonomousAgentInter
   const [goals, setGoals] = useState<Goal[]>(agent.getGoals());
   const [explanations, setExplanations] = useState<Explanation[]>(agent.getExplanations());
   const [isListening, setIsListening] = useState(false);
-  const [showPanel, setShowPanel] = useState<'chat' | 'goals' | 'explanations' | 'uploader' | null>('chat');
+  const [showPanel, setShowPanel] = useState<'chat' | 'goals' | 'explanations' | 'uploader' | 'enhanced' | 'game' | null>('chat');
+  const [showGame, setShowGame] = useState(false);
 
   // Update UI based on sensory state
   useEffect(() => {
@@ -49,18 +52,36 @@ export default function AutonomousAgentInterface({ agent }: AutonomousAgentInter
     // Add to chat history
     setChatHistory([...chatHistory, { role: 'user', content: chatInput }]);
 
-    // Parse command
+    // Parse command and morph UI accordingly
     if (chatInput.toLowerCase().includes('upload')) {
-      setShowPanel('uploader');
+      setShowPanel('enhanced');
+      setChatHistory(prev => [...prev, { role: 'agent', content: '📤 Pulling up uploader for you...' }]);
+    } else if (chatInput.toLowerCase().includes('video') || chatInput.toLowerCase().includes('play')) {
+      setShowPanel('enhanced');
+      setChatHistory(prev => [...prev, { role: 'agent', content: '🎬 Opening video player...' }]);
+    } else if (chatInput.toLowerCase().includes('game') || chatInput.toLowerCase().includes('sims') || chatInput.toLowerCase().includes('play')) {
+      setShowGame(true);
+      setChatHistory(prev => [...prev, { role: 'agent', content: '🎮 Starting life simulation...' }]);
+    } else if (chatInput.toLowerCase().includes('what can you do') || chatInput.toLowerCase().includes('capabilities')) {
+      setShowPanel('enhanced');
+      setChatHistory(prev => [...prev, { role: 'agent', content: '✨ Here\'s what I can do for you...' }]);
     } else if (chatInput.toLowerCase().includes('goal') || chatInput.toLowerCase().includes('job')) {
       // Create goal from input
       const goal = agent.createGoalFromJob(chatInput, 'User-requested goal');
       setChatHistory(prev => [...prev, { role: 'agent', content: `Created goal: ${chatInput}` }]);
     } else if (chatInput.toLowerCase().includes('learn') || chatInput.toLowerCase().includes('book')) {
-      setShowPanel('uploader');
+      setShowPanel('enhanced');
+      setChatHistory(prev => [...prev, { role: 'agent', content: '📚 Ready to learn from your books...' }]);
     } else {
-      // Regular chat
-      setChatHistory(prev => [...prev, { role: 'agent', content: `Processing: ${chatInput}` }]);
+      // Regular chat with personality
+      const responses = [
+        `Processing: ${chatInput}`,
+        `Interesting... let me think about that.`,
+        `Got it! Working on it...`,
+        `I like where your head's at. Let me orchestrate that.`,
+      ];
+      const response = responses[Math.floor(Math.random() * responses.length)];
+      setChatHistory(prev => [...prev, { role: 'agent', content: response }]);
     }
 
     setChatInput('');
@@ -245,7 +266,13 @@ export default function AutonomousAgentInterface({ agent }: AutonomousAgentInter
 
       {/* Main content area */}
       <div className="flex-1 overflow-hidden">
-        {renderMainContent()}
+        {showGame ? (
+          <SimsGame />
+        ) : showPanel === 'enhanced' ? (
+          <EnhancedUIPanel />
+        ) : (
+          renderMainContent()
+        )}
       </div>
 
       {/* Bottom panel selector */}
@@ -265,18 +292,18 @@ export default function AutonomousAgentInterface({ agent }: AutonomousAgentInter
           🎯 Goals ({goals.length})
         </Button>
         <Button
-          onClick={() => setShowPanel(showPanel === 'explanations' ? null : 'explanations')}
-          variant={showPanel === 'explanations' ? 'default' : 'outline'}
+          onClick={() => setShowPanel(showPanel === 'enhanced' ? null : 'enhanced')}
+          variant={showPanel === 'enhanced' ? 'default' : 'outline'}
           className="flex-1 text-xs"
         >
-          📝 Explain
+          ✨ Tools
         </Button>
         <Button
-          onClick={() => setShowPanel(showPanel === 'uploader' ? null : 'uploader')}
-          variant={showPanel === 'uploader' ? 'default' : 'outline'}
+          onClick={() => setShowGame(!showGame)}
+          variant={showGame ? 'default' : 'outline'}
           className="flex-1 text-xs"
         >
-          <Upload className="w-3 h-3 mr-1" /> Upload
+          <Gamepad2 className="w-3 h-3 mr-1" /> Game
         </Button>
       </div>
     </div>
