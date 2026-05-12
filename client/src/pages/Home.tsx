@@ -10,7 +10,7 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import NeuralMeshVisualizer from '@/components/NeuralMeshVisualizer';
-import ResonanceOrchestrator from '@/lib/orchestrator';
+import ResonanceOrchestrator from '@/lib/orchestrator-safe';
 import MetaOrchestrator from '@/lib/meta-orchestrator';
 import AutonomousAgent from '@/lib/autonomous-agent';
 import MetaOrchestratorPanel from '@/components/MetaOrchestratorPanel';
@@ -39,6 +39,10 @@ export default function Home() {
     
     const autonomousAgent = new AutonomousAgent();
     setAgent(autonomousAgent);
+
+    return () => {
+      orch.stopAutonomousLoop();
+    };
   }, []);
 
   // Trigger re-renders to show autonomous updates
@@ -196,7 +200,7 @@ export default function Home() {
                 <div className="flex justify-between">
                   <span>Active Nodes:</span>
                   <span className="text-cyan-300">
-                    {orchestrator.getAllMeshNodes().length}
+                    {orchestrator.getLoadedNodes().length}
                   </span>
                 </div>
                 <div className="flex justify-between">
