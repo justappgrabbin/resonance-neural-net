@@ -1,289 +1,143 @@
-/**
- * RESONANCE NEURAL NETWORK - HOME PAGE
- * 
- * The main interface for the dynamic neural network orchestrator.
- * Displays the 5-mesh 13-layer structure with real-time visualization,
- * coherence monitoring, and interactive personality system.
- */
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import NeuralMeshVisualizer from '@/components/NeuralMeshVisualizer'
+import ResonanceOrchestrator from '@/lib/orchestrator'
 
-import React, { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import NeuralMeshVisualizer from '@/components/NeuralMeshVisualizer';
-import ResonanceOrchestrator from '@/lib/orchestrator-safe';
-import MetaOrchestrator from '@/lib/meta-orchestrator';
-import AutonomousAgent from '@/lib/autonomous-agent';
-import MetaOrchestratorPanel from '@/components/MetaOrchestratorPanel';
-import AutonomousAgentInterface from '@/components/AutonomousAgentInterface';
+const SYNTHIA_BASE = 'https://synthia-server.onrender.com'
+
+type UploadItem = {
+  id: string
+  name: string
+  status: 'pending' | 'ingested' | 'error'
+  message?: string
+}
 
 export default function Home() {
-  const [orchestrator, setOrchestrator] = useState<ResonanceOrchestrator | null>(null);
-  const [metaOrchestrator, setMetaOrchestrator] = useState<MetaOrchestrator | null>(null);
-  const [agent, setAgent] = useState<AutonomousAgent | null>(null);
-  const [userId, setUserId] = useState('user-' + Math.random().toString(36).substr(2, 9));
-  const [input, setInput] = useState('');
-  const [response, setResponse] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
-  const [attitude, setAttitude] = useState<'curious' | 'playful' | 'serious' | 'mystical' | 'analytical'>('curious');
-  const [, setUpdateTrigger] = useState(0);
-  const [showMetaPanel, setShowMetaPanel] = useState(false);
-  const [showAgentInterface, setShowAgentInterface] = useState(false);
+  const [orchestrator, setOrchestrator] = useState<ResonanceOrchestrator | null>(null)
+  const [input, setInput] = useState('')
+  const [response, setResponse] = useState('')
+  const [uploads, setUploads] = useState<UploadItem[]>([])
+  const [isDragging, setIsDragging] = useState(false)
+  const [tick, setTick] = useState(0)
+  const fileRef = useRef<HTMLInputElement | null>(null)
 
-  // Initialize orchestrators and agent
   useEffect(() => {
-    const orch = new ResonanceOrchestrator('https://synthia-server.onrender.com');
-    setOrchestrator(orch);
-    
-    const metaOrch = new MetaOrchestrator();
-    setMetaOrchestrator(metaOrch);
-    
-    const autonomousAgent = new AutonomousAgent();
-    setAgent(autonomousAgent);
+    const orch = new ResonanceOrchestrator({
+      apiBase: SYNTHIA_BASE,
+      mcpEndpoint: `${SYNTHIA_BASE}/mcp`,
+      autoStart: true,
+    })
+    orch.startAutonomousLoop()
+    setOrchestrator(orch)
+    return () => orch.stopAutonomousLoop()
+  }, [])
 
-    return () => {
-      orch.stopAutonomousLoop();
-    };
-  }, []);
-
-  // Trigger re-renders to show autonomous updates
   useEffect(() => {
-    const interval = setInterval(() => {
-      setUpdateTrigger(prev => prev + 1);
-    }, 500);
-    return () => clearInterval(interval);
-  }, []);
+    const timer = window.setInterval(() => setTick((value) => value + 1), 750)
+    return () => window.clearInterval(timer)
+  }, [])
 
-  // Handle input submission
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!orchestrator || !input.trim()) return;
+  const metrics = useMemo(() => orchestrator?.getMetrics(), [orchestrator, tick])
 
-    setLoading(true);
+  const ingestFiles = async (files: FileList | null) => {
+    if (!files || !orchestrator) return
+
+    for (const file of Array.from(files)) {
+      const id = `${file.name}-${Date.now()}`
+      setUploads((items) => [{ id, name: file.name, status: 'pending' }, ...items])
+
+      try {
+        const text = await file.text()
+        await orchestrator.ingestDocument(file.name, text, file.type || 'text/plain')
+        setUploads((items) => items.map((item) => item.id === id ? { ...item, status: 'ingested', message: 'Ingested into v8 memory mesh' } : item))
+      } catch (error) {
+        setUploads((items) => items.map((item) => item.id === id ? { ...item, status: 'error', message: error instanceof Error ? error.message : 'Could not ingest file' } : item))
+      }
+    }
+  }
+
+  const ask = async (event: React.FormEvent) => {
+    event.preventDefault()
+    if (!orchestrator || !input.trim()) return
+
+    const message = input.trim()
+    setInput('')
+
     try {
-      const result = await orchestrator.routeData(input, userId);
-      setResponse(result);
-      setInput('');
-    } catch (error) {
-      console.error('Error routing data:', error);
-      setResponse({
-        response: 'The pattern is too complex to resolve right now. Try again.',
-        error: true,
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+      const speech = await fetch(`${SYNTHIA_BASE}/mrnn/speech/speak`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message, translator: 'voice', train: true }),
+      }).then((res) => res.ok ? res.json() : null).catch(() => null)
 
-  // Handle attitude change
-  const handleAttitudeChange = (newAttitude: 'curious' | 'playful' | 'serious' | 'mystical' | 'analytical') => {
-    setAttitude(newAttitude);
-    if (orchestrator) {
-      orchestrator.setAttitude(newAttitude);
+      const routed = await orchestrator.routeData(message, 'field-user')
+      setResponse(speech?.text || routed.response || 'The field received it, but the speech layer is not wired yet.')
+    } catch (error) {
+      setResponse(error instanceof Error ? error.message : 'Route failed')
     }
-  };
+  }
 
   if (!orchestrator) {
-    return (
-      <div className="min-h-screen bg-slate-950 text-cyan-100 flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-4xl font-bold mb-4">🌌 Initializing Resonance Engine...</div>
-          <div className="text-cyan-400">Building the neural mesh...</div>
-        </div>
-      </div>
-    );
-  }
-
-  if (showAgentInterface && agent) {
-    return (
-      <AutonomousAgentInterface agent={agent} />
-    );
-  }
-
-  if (showMetaPanel && metaOrchestrator) {
-    return (
-      <MetaOrchestratorPanel 
-        metaOrchestrator={metaOrchestrator}
-        onBack={() => setShowMetaPanel(false)}
-      />
-    );
+    return <div className="min-h-screen bg-[#050509] text-[#f5c518] grid place-items-center font-mono">Booting MRNN v8...</div>
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-cyan-100 p-4">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-5xl font-bold mb-2 text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">
-            ◆ RESONANCE NEURAL NETWORK ◆
-          </h1>
-          <p className="text-cyan-400 font-mono">
-            5 Meshes • 13 Layers • 9 Centers • 64 Nodes • 22+ Trillion States
-          </p>
-          <p className="text-cyan-300 text-sm mt-2">
-            User ID: {userId}
-          </p>
-        </div>
+    <div className="relative min-h-screen overflow-hidden bg-[#050509] text-[#f7e7b2] font-mono">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(245,197,24,0.12),transparent_35%),radial-gradient(circle_at_80%_70%,rgba(16,212,116,0.10),transparent_35%)]" />
 
-        {/* Main Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-          {/* Visualizer - Takes 2 columns on large screens */}
-          <div className="lg:col-span-2">
-            <Card className="bg-slate-900 border-cyan-500 p-4">
-              <div className="mb-4">
-                <h2 className="text-xl font-bold text-cyan-400 mb-2">Neural Mesh Visualization</h2>
-                <p className="text-cyan-300 text-sm">Click on nodes to inspect their state</p>
-              </div>
-              <NeuralMeshVisualizer 
-                orchestrator={orchestrator} 
-                width={800}
-                height={600}
-                interactive={true}
-              />
-            </Card>
-          </div>
-
-          {/* Control Panel */}
-          <div className="flex flex-col gap-4">
-            {/* Autonomous Agent Button */}
-            <Button
-              onClick={() => setShowAgentInterface(true)}
-              className="w-full bg-pink-600 text-white hover:bg-pink-700 font-bold animate-pulse"
-            >
-              🤖 Autonomous Agent
-            </Button>
-
-            {/* Meta-Orchestrator Button */}
-            <Button
-              onClick={() => setShowMetaPanel(true)}
-              className="w-full bg-purple-600 text-white hover:bg-purple-700 font-bold"
-            >
-              📦 Meta-Orchestrator
-            </Button>
-
-            {/* Attitude Selector */}
-            <Card className="bg-slate-900 border-cyan-500 p-4">
-              <h3 className="text-cyan-400 font-bold mb-3">Personality Mode</h3>
-              <div className="space-y-2">
-                {(['curious', 'playful', 'serious', 'mystical', 'analytical'] as const).map((att) => (
-                  <Button
-                    key={att}
-                    onClick={() => handleAttitudeChange(att)}
-                    variant={attitude === att ? 'default' : 'outline'}
-                    className={`w-full capitalize ${
-                      attitude === att
-                        ? 'bg-cyan-500 text-slate-950'
-                        : 'border-cyan-500 text-cyan-400 hover:bg-cyan-500 hover:text-slate-950'
-                    }`}
-                  >
-                    {att}
-                  </Button>
-                ))}
-              </div>
-            </Card>
-
-            {/* Stats */}
-            <Card className="bg-slate-900 border-cyan-500 p-4">
-              <h3 className="text-cyan-400 font-bold mb-3">System State</h3>
-              <div className="space-y-2 text-sm font-mono">
-                <div className="flex justify-between">
-                  <span>Coherence:</span>
-                  <span className="text-cyan-300">
-                    {(orchestrator.getGlobalCoherence() * 100).toFixed(1)}%
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Morph State:</span>
-                  <span className="text-cyan-300">
-                    {(orchestrator.getMorphState() * 100).toFixed(1)}%
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Active Nodes:</span>
-                  <span className="text-cyan-300">
-                    {orchestrator.getLoadedNodes().length}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Attitude:</span>
-                  <span className="text-cyan-300 capitalize">{attitude}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Autonomous:</span>
-                  <span className={orchestrator.isAutonomous() ? 'text-green-400' : 'text-red-400'}>
-                    {orchestrator.isAutonomous() ? '✓ Running' : '✗ Stopped'}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Ticks:</span>
-                  <span className="text-cyan-300">
-                    {orchestrator.getTickCount()}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Attractors:</span>
-                  <span className="text-cyan-300">
-                    {orchestrator.getAttractors().size}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Learned Paths:</span>
-                  <span className="text-cyan-300">
-                    {orchestrator.getConnectionWeights().size}
-                  </span>
-                </div>
-              </div>
-            </Card>
-
-            {/* Response Display */}
-            {response && (
-              <Card className="bg-slate-900 border-cyan-500 p-4">
-                <h3 className="text-cyan-400 font-bold mb-2">Oracle Response</h3>
-                <div className="text-sm space-y-2">
-                  <div className="text-cyan-300">
-                    {response.response}
-                  </div>
-                  {response.address && (
-                    <div className="text-xs text-cyan-500 font-mono">
-                      Address: M{response.address.mesh}L{response.address.layer}C{response.address.center}
-                    </div>
-                  )}
-                </div>
-              </Card>
-            )}
-          </div>
-        </div>
-
-        {/* Input Panel */}
-        <Card className="bg-slate-900 border-cyan-500 p-6">
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-cyan-400 font-bold mb-2">
-                Query the Neural Network
-              </label>
-              <textarea
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="Ask anything... The network will find the resonance..."
-                className="w-full bg-slate-800 border border-cyan-500 rounded-lg p-3 text-cyan-100 placeholder-cyan-600 focus:outline-none focus:ring-2 focus:ring-cyan-500 font-mono text-sm"
-                rows={3}
-              />
-            </div>
-            <Button
-              type="submit"
-              disabled={loading || !input.trim()}
-              className="w-full bg-cyan-500 hover:bg-cyan-600 text-slate-950 font-bold"
-            >
-              {loading ? '◆ Routing Through Mesh ◆' : '◆ Send Query ◆'}
-            </Button>
-          </form>
-        </Card>
-
-        {/* Info Footer */}
-        <div className="mt-8 text-center text-cyan-600 text-xs font-mono">
-          <p>Resonance Neural Network • Orchestrator Engine • Synthia Server Integration</p>
-          <p>The intelligence that brings it all together</p>
-        </div>
+      <div className="absolute inset-0 z-0">
+        <NeuralMeshVisualizer orchestrator={orchestrator} width={1200} height={800} interactive />
       </div>
+
+      <header className="relative z-10 m-4 inline-block rounded-2xl border border-[#c9a84c]/30 bg-black/65 p-4 backdrop-blur-xl">
+        <div className="text-xs uppercase tracking-[0.35em] text-[#c9a84c]">MRNN Orchestrator OS</div>
+        <h1 className="text-3xl font-black text-[#f5c518]">The Field</h1>
+        <div className="mt-2 grid grid-cols-2 gap-x-5 gap-y-1 text-xs text-[#f7e7b2]/80">
+          <span>Autonomy: <b className={orchestrator.isAutonomous() ? 'text-[#10d474]' : 'text-[#ff5959]'}>{orchestrator.isAutonomous() ? 'ON' : 'OFF'}</b></span>
+          <span>Ticks: {orchestrator.getTickCount()}</span>
+          <span>Coherence: {((metrics?.globalCoherence ?? 0) * 100).toFixed(1)}%</span>
+          <span>Nodes: {metrics?.loadedNodeCount ?? 0}</span>
+          <span>Docs: {metrics?.documentsIngested ?? 0}</span>
+          <span>Chunks: {metrics?.totalChunks ?? 0}</span>
+        </div>
+      </header>
+
+      <section className="absolute bottom-4 left-4 z-20 w-[min(430px,calc(100vw-2rem))] rounded-3xl border border-[#c9a84c]/30 bg-black/75 p-4 shadow-2xl backdrop-blur-xl">
+        <div
+          className={`mb-4 cursor-pointer rounded-2xl border border-dashed p-5 text-center ${isDragging ? 'border-[#10d474] bg-[#10d474]/10' : 'border-[#c9a84c]/35 bg-[#c9a84c]/5'}`}
+          onClick={() => fileRef.current?.click()}
+          onDragOver={(event) => { event.preventDefault(); setIsDragging(true) }}
+          onDragLeave={() => setIsDragging(false)}
+          onDrop={(event) => { event.preventDefault(); setIsDragging(false); void ingestFiles(event.dataTransfer.files) }}
+        >
+          <input ref={fileRef} type="file" multiple className="hidden" onChange={(event) => void ingestFiles(event.target.files)} />
+          <div className="text-2xl">⬡</div>
+          <div className="text-sm font-bold text-[#f5c518]">Drop files into the field</div>
+          <div className="text-xs text-[#f7e7b2]/55">Readable files are ingested into v8 memory so the system can route with context.</div>
+        </div>
+
+        {uploads.length > 0 && (
+          <div className="mb-4 max-h-28 space-y-2 overflow-y-auto">
+            {uploads.slice(0, 5).map((item) => (
+              <div key={item.id} className="flex justify-between gap-2 rounded-xl bg-white/[0.04] px-3 py-2 text-xs">
+                <span className="truncate">{item.name}</span>
+                <span className={item.status === 'ingested' ? 'text-[#10d474]' : item.status === 'error' ? 'text-[#ff5959]' : 'text-[#f5c518]'}>{item.status}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <form onSubmit={ask} className="space-y-3">
+          <textarea
+            value={input}
+            onChange={(event) => setInput(event.target.value)}
+            placeholder="Speak to the field..."
+            className="min-h-24 w-full resize-none rounded-2xl border border-[#c9a84c]/25 bg-[#07070d]/90 p-3 text-sm text-[#f7e7b2] placeholder:text-[#f7e7b2]/35 outline-none focus:ring-2 focus:ring-[#f5c518]/30"
+          />
+          <button className="w-full rounded-2xl bg-[#f5c518] py-3 font-black text-black hover:bg-[#ffd84f]" type="submit">Send to MRNN</button>
+        </form>
+
+        {response && <div className="mt-4 rounded-2xl border border-[#10d474]/20 bg-[#10d474]/5 p-3 text-sm text-[#f7e7b2]/90">{response}</div>}
+      </section>
     </div>
-  );
+  )
 }
