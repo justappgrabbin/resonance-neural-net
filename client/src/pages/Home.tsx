@@ -38,17 +38,61 @@ export default function Home() {
 
   const metrics = useMemo(() => orchestrator?.getMetrics(), [orchestrator, tick])
 
+  const sendToSynthiaDrop = async (filename: string, content: string, contentType: string) => {
+    const res = await fetch(`${SYNTHIA_BASE}/api/drop`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        filename,
+        content,
+        context: {
+          source: 'mrnn-field-uploader',
+          contentType,
+          requestedFlow: 'analyze_structure_infer_intent_assign_ontological_address_queue_integration_then_apply_or_deploy',
+        },
+      }),
+    })
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => '')
+      throw new Error(text || `Synthia drop failed: ${res.status}`)
+    }
+
+    return res.json()
+  }
+
   const ingestFiles = async (files: FileList | null) => {
     if (!files || !orchestrator) return
 
     for (const file of Array.from(files)) {
       const id = `${file.name}-${Date.now()}`
-      setUploads((items) => [{ id, name: file.name, status: 'pending' }, ...items])
+      setUploads((items) => [{ id, name: file.name, status: 'pending', message: 'Reading file...' }, ...items])
 
       try {
         const text = await file.text()
-        await orchestrator.ingestDocument(file.name, text, file.type || 'text/plain')
-        setUploads((items) => items.map((item) => item.id === id ? { ...item, status: 'ingested', message: 'Ingested into v8 memory mesh' } : item))
+        setUploads((items) => items.map((item) => item.id === id ? { ...item, message: 'Analyzing structure + intent...' } : item))
+
+        const [doc, drop] = await Promise.all([
+          orchestrator.ingestDocument(file.name, text, file.type || 'text/plain'),
+          sendToSynthiaDrop(file.name, text, file.type || 'text/plain'),
+        ])
+
+        const address = drop?.address || drop?.ontological_address || drop?.gnn_analysis?.address || null
+        const mode = drop?.recommended_mode || drop?.mode || drop?.gnn_analysis?.mode || null
+        const confidence = drop?.confidence || drop?.gnn_analysis?.confidence || null
+        const autoIntegration = drop?.auto_integration ? 'queued' : 'review'
+
+        setUploads((items) => items.map((item) => item.id === id ? {
+          ...item,
+          status: 'ingested',
+          message: [
+            `v8 chunks: ${doc.chunks.length}`,
+            mode ? `mode: ${mode}` : null,
+            address ? `address: ${typeof address === 'string' ? address : JSON.stringify(address)}` : null,
+            confidence ? `confidence: ${Math.round(confidence * 100)}%` : null,
+            `integration: ${autoIntegration}`,
+          ].filter(Boolean).join(' · '),
+        } : item))
       } catch (error) {
         setUploads((items) => items.map((item) => item.id === id ? { ...item, status: 'error', message: error instanceof Error ? error.message : 'Could not ingest file' } : item))
       }
@@ -112,15 +156,18 @@ export default function Home() {
           <input ref={fileRef} type="file" multiple className="hidden" onChange={(event) => void ingestFiles(event.target.files)} />
           <div className="text-2xl">⬡</div>
           <div className="text-sm font-bold text-[#f5c518]">Drop files into the field</div>
-          <div className="text-xs text-[#f7e7b2]/55">Readable files are ingested into v8 memory so the system can route with context.</div>
+          <div className="text-xs text-[#f7e7b2]/55">Files are analyzed for structure, intent, address, and integration path.</div>
         </div>
 
         {uploads.length > 0 && (
-          <div className="mb-4 max-h-28 space-y-2 overflow-y-auto">
+          <div className="mb-4 max-h-36 space-y-2 overflow-y-auto">
             {uploads.slice(0, 5).map((item) => (
-              <div key={item.id} className="flex justify-between gap-2 rounded-xl bg-white/[0.04] px-3 py-2 text-xs">
-                <span className="truncate">{item.name}</span>
-                <span className={item.status === 'ingested' ? 'text-[#10d474]' : item.status === 'error' ? 'text-[#ff5959]' : 'text-[#f5c518]'}>{item.status}</span>
+              <div key={item.id} className="rounded-xl bg-white/[0.04] px-3 py-2 text-xs">
+                <div className="flex justify-between gap-2">
+                  <span className="truncate">{item.name}</span>
+                  <span className={item.status === 'ingested' ? 'text-[#10d474]' : item.status === 'error' ? 'text-[#ff5959]' : 'text-[#f5c518]'}>{item.status}</span>
+                </div>
+                {item.message && <div className="mt-1 text-[11px] text-[#f7e7b2]/50">{item.message}</div>}
               </div>
             ))}
           </div>
