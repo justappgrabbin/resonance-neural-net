@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MRNN Orchestrator OS</title>
+  <link rel="stylesheet" href="css/field.css">
+</head>
+<body>
+  <!-- Fullscreen canvas -->
+  <canvas id="field-canvas"></canvas>
+
+  <!-- Chat panel (initially visible, can be minimized) -->
+  <div id="chat-panel" class="chat-panel">
+    <div class="chat-header">
+      <span class="chat-title">Field Translator</span>
+      <button class="chat-toggle">−</button>
+    </div>
+    <div class="chat-messages"></div>
+    <div class="chat-input-area">
+      <input type="text" class="chat-input" placeholder="Speak to the field..." />
+      <button class="chat-voice-btn">🎤</button>
+      <button class="chat-send-btn">→</button>
+    </div>
+  </div>
+
+  <!-- Mode selector (bottom left) -->
+  <div id="mode-selector" class="mode-selector">
+    <button data-mode="void" class="mode-btn active">Void</button>
+    <button data-mode="mandala" class="mode-btn">Mandala</button>
+    <button data-mode="tree" class="mode-btn">Tree</button>
+    <button data-mode="hexagram" class="mode-btn">Hexagram</button>
+    <button data-mode="neural" class="mode-btn">Neural</button>
+    <button data-mode="hardware" class="mode-btn">Hardware</button>
+    <button data-mode="unified" class="mode-btn">Unified</button>
+  </div>
+
+  <!-- Core -->
+  <script src="js/core/ResonanceNode.js"></script>
+  <script src="js/core/FibonacciEngine.js"></script>
+  <script src="js/core/Monopole.js"></script>
+  <script src="js/core/UnifiedField.js"></script>
+
+  <!-- Loops -->
+  <script src="js/loops/MoodState.js"></script>
+  <script src="js/loops/BeingLoop.js"></script>
+  <script src="js/loops/DesignLoop.js"></script>
+  <script src="js/loops/MovementLoop.js"></script>
+  <script src="js/loops/EvolutionLoop.js"></script>
+  <script src="js/loops/SpaceLoop.js"></script>
+
+  <!-- Agents -->
+  <script src="js/agents/AgentNode.js"></script>
+
+  <!-- IO -->
+  <script src="js/io/FileIngestor.js"></script>
+  <script src="js/io/OutputManifestor.js"></script>
+  <script src="js/io/ChatInterface.js"></script>
+
+  <!-- Mesh -->
+  <script src="js/mesh/P2PMesh.js"></script>
+
+  <!-- Render -->
+  <script src="js/render/FieldRenderer.js"></script>
+  <script src="js/render/SonicOutput.js"></script>
+  <script src="js/render/HapticOutput.js"></script>
+
+  <!-- Main -->
+  <script src="js/main.js"></script>
+</body>
+</html>
