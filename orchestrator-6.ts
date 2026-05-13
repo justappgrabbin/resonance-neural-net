@@ -91,7 +91,7 @@ export class ResonanceOrchestrator {
     attitude: 'curious' | 'playful' | 'serious' | 'mystical' | 'analytical';
     morphState: number; // 0-1, visual morphing state
   };
-  private tickInterval: number | undefined;
+  private tickInterval: ReturnType<typeof setInterval> | undefined;
   private isRunning: boolean = false;
   private tickCount: number = 0;
   private connectionWeights: Map<string, number> = new Map(); // Learning: connection strength
@@ -102,7 +102,7 @@ export class ResonanceOrchestrator {
   private loadedNodeKeys: Set<string> = new Set();
   private seedGates: number[] = [10, 20, 34, 57]; // Integration Circuit gates (always loaded)
 
-  constructor(apiBase: string = 'http://localhost:10000', autoStart = false) {
+  constructor(apiBase: string = 'https://synthia-server.onrender.com', autoStart = true) {
     this.apiBase = apiBase;
     this.personality = {
       wit: [
@@ -132,7 +132,7 @@ export class ResonanceOrchestrator {
     if (this.isRunning) return;
     this.isRunning = true;
     
-    this.tickInterval = window.setInterval(() => {
+    this.tickInterval = setInterval(() => {
       this.tick();
     }, 250); // ~4 ticks per second for sustainable load (was 50ms/20Hz)
   }
@@ -143,6 +143,7 @@ export class ResonanceOrchestrator {
   public stopAutonomousLoop(): void {
     if (this.tickInterval !== undefined) {
       clearInterval(this.tickInterval);
+      this.tickInterval = undefined;
       this.isRunning = false;
     }
   }
@@ -429,9 +430,7 @@ export class ResonanceOrchestrator {
    * Implements a "coherence frontier" - edges of loaded space
    */
   public loadNodesInProximity(centerAddress: Address, proximityRadius: number = 2): void {
-    const toLoad: NodeState[] = [];
-
-    // Load nodes in the same layer (resonance zone)
+    // Load nodes in the same layer (resonance zone), capped at 1000 loaded nodes.
     for (let center = 0; center < 9; center++) {
       for (let node = 0; node < 64; node++) {
         const address: Address = {
@@ -442,7 +441,7 @@ export class ResonanceOrchestrator {
         };
 
         const key = this.addressToKey(address);
-        if (!this.loadedNodeKeys.has(key) && this.mesh.size < 1000) { // Cap at 1000 loaded nodes
+        if (!this.loadedNodeKeys.has(key) && this.mesh.size < 1000) {
           const nodeState: NodeState = {
             address,
             baseState: 'STABLE',
@@ -456,7 +455,6 @@ export class ResonanceOrchestrator {
 
           this.mesh.set(key, nodeState);
           this.loadedNodeKeys.add(key);
-          toLoad.push(nodeState);
         }
       }
     }
@@ -534,6 +532,8 @@ export class ResonanceOrchestrator {
    * Route data through the mesh
    */
   public async routeData(input: any, userId: string): Promise<any> {
+    this.startAutonomousLoop();
+
     // Get or create personality profile
     let profile = this.personalities.get(userId);
     if (!profile) {
@@ -543,6 +543,9 @@ export class ResonanceOrchestrator {
 
     // Calculate resonance address based on input
     const address = this.calculateResonanceAddress(input, profile);
+
+    // Load relevant space before retrieval and update.
+    this.loadNodesInProximity(address, 2);
 
     // Retrieve from super base
     const superBaseEntry = this.retrieveFromSuperBase(address, profile);
@@ -570,18 +573,18 @@ export class ResonanceOrchestrator {
    */
   private calculateResonanceAddress(input: any, profile: PersonalityProfile): Address {
     // Hash the input to determine which address resonates
-    const hash = this.hashInput(input);
+    const hash = this.hashInput({ input, userId: profile.userId });
     
     return {
       mesh: hash % 5,
-      layer: (hash >> 8) % 13,
-      center: (hash >> 16) % 9,
-      node: (hash >> 24) % 64,
-      line: ((hash >> 32) % 6) + 1,
-      color: (hash >> 40) % 6,
-      tone: (hash >> 48) % 6,
-      zodiac: (hash >> 56) % 12,
-      house: (hash >> 64) % 12,
+      layer: Math.floor(hash / 5) % 13,
+      center: Math.floor(hash / 65) % 9,
+      node: Math.floor(hash / 585) % 64,
+      line: (Math.floor(hash / 37440) % 6) + 1,
+      color: Math.floor(hash / 224640) % 6,
+      tone: Math.floor(hash / 1347840) % 6,
+      zodiac: Math.floor(hash / 8087040) % 12,
+      house: Math.floor(hash / 97044480) % 12,
       dimension: Math.random(),
       arcDegree: this.calculateArcDegree(),
     };
