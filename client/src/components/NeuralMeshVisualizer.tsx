@@ -6,6 +6,7 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react'
+import '@/lib/orchestratorMorphStatePatch'
 import { ResonanceOrchestrator, NodeState, Address } from '@/lib/orchestrator'
 
 interface NeuralMeshVisualizerProps {
