@@ -1,793 +1,348 @@
-/**
- * RESONANCE ORCHESTRATOR ENGINE
- * 
- * The living intelligence substrate that routes data through the 5-mesh 13-layer structure.
- * Each node is addressed by gate/line/color/tone/zodiac/house coordinates.
- * The orchestrator retrieves from the super base, personalizes via agents, and morphs visually.
- * 
- * Architecture:
- * - 5 Meshes (dimensional planes)
- * - 13 Layers per mesh (circuit families)
- * - 9 Centers per layer (body graph centers)
- * - 64 Nodes per center (hexagram states)
- * - 6 States per node (lines 1-6)
- * - 6 Modifications, 6 Senses, 6 Connecting Points per state
- * - 5 Base States (STABLE, CHANGING, RESOLVING, RESONANT, DORMANT)
- */
-
 export interface Address {
-  mesh: number; // 0-4 (Physical, Emotional, Mental, Soul, Field)
-  layer: number; // 0-12 (Circuit families)
-  center: number; // 0-8 (Body graph centers)
-  node: number; // 0-63 (Hexagram states)
-  line: number; // 1-6 (Line number)
-  color: number; // 0-5 (I Ching color)
-  tone: number; // 0-5 (I Ching tone)
-  zodiac: number; // 0-11 (Zodiac sign)
-  house: number; // 0-11 (Astrological house)
-  dimension: number; // Spatial dimension
-  arcDegree: number; // Time-driven arc (0-360)
+  mesh: number
+  layer: number
+  center: number
+  node: number
+  line: number
+  color: number
+  tone: number
+  zodiac: number
+  house: number
+  dimension: number
+  arcDegree: number
 }
 
 export interface NodeState {
-  address: Address;
-  baseState: 'STABLE' | 'CHANGING' | 'RESOLVING' | 'RESONANT' | 'DORMANT';
-  tension: number; // 0-1, proximity to flip threshold
-  modifications: Modification[];
-  senses: Sense[];
-  connectingPoints: ConnectingPoint[];
-  coherence: number; // Local coherence metric
-  lastUpdated: number; // Timestamp
-}
-
-export interface Modification {
-  type: 'gain' | 'noise' | 'bleed' | 'magnitude' | 'sensitivity' | 'resonance';
-  value: number; // 0-1
-  active: boolean;
-}
-
-export interface Sense {
-  type: 'sight' | 'taste' | 'touch' | 'smell' | 'sound' | 'proprioception';
-  intensity: number; // 0-1
-  data: any;
-}
-
-export interface ConnectingPoint {
-  type: 'input' | 'output' | 'memory' | 'lateral' | 'temporal' | 'field';
-  connected: Address | null;
-  strength: number; // 0-1
+  address: Address
+  baseState: 'STABLE' | 'CHANGING' | 'RESOLVING' | 'RESONANT' | 'DORMANT'
+  tension: number
+  modifications: Array<{ type: string; value: number; active: boolean }>
+  senses: Array<{ type: string; intensity: number; data: unknown }>
+  connectingPoints: Array<{ type: string; connected: Address | null; strength: number }>
+  coherence: number
+  lastUpdated: number
 }
 
 export interface SuperBaseEntry {
-  id: string;
-  address: Address;
-  content: any;
-  metadata: {
-    gate?: number;
-    line?: number;
-    codon?: string;
-    timestamp: number;
-    resonanceScore?: number;
-  };
+  id: string
+  address: Address
+  content: unknown
+  metadata: Record<string, unknown> & { timestamp: number; resonanceScore?: number }
 }
 
 export interface PersonalityProfile {
-  userId: string;
-  birthChart: any;
-  preferences: Record<string, any>;
-  learningHistory: any[];
-  adaptationLevel: number; // 0-1
+  userId: string
+  birthChart: unknown
+  preferences: Record<string, unknown>
+  learningHistory: unknown[]
+  adaptationLevel: number
+}
+
+export type RegenerationMode = 'exact' | 'cleaned' | 'improved'
+
+export interface RouteResult {
+  address: Address
+  response: string
+  superBaseEntry: SuperBaseEntry | null
+  coherence: number
+  morphState: number
+  matches: SuperBaseEntry[]
 }
 
 export class ResonanceOrchestrator {
-  private mesh: Map<string, NodeState> = new Map();
-  private superBase: Map<string, SuperBaseEntry> = new Map();
-  private personalities: Map<string, PersonalityProfile> = new Map();
-  private globalCoherence: number = 0.5;
-  private currentTime: number = Date.now();
-  private apiBase: string;
-  private personality: {
-    wit: string[];
-    attitude: 'curious' | 'playful' | 'serious' | 'mystical' | 'analytical';
-    morphState: number; // 0-1, visual morphing state
-  };
-  private tickInterval: number | undefined;
-  private isRunning: boolean = false;
-  private tickCount: number = 0;
-  private connectionWeights: Map<string, number> = new Map(); // Learning: connection strength
-  private pathUsageHistory: Map<string, number> = new Map(); // Learning: path frequency
-  private attractors: Map<string, number> = new Map(); // Stable patterns
-
-  constructor(apiBase: string = 'http://localhost:10000') {
-    this.apiBase = apiBase;
-    this.personality = {
-      wit: [
-        'Oh, you stink like a fish 🐟',
-        'Interesting choice, very... you',
-        'The universe is listening',
-        'That resonates with something deep',
-        'I see what you did there',
-        'The coherence just spiked',
-      ],
-      attitude: 'curious',
-      morphState: 0,
-    };
-    this.initializeMesh();
-    this.startAutonomousLoop();
+  private mesh = new Map<string, NodeState>()
+  private superBase = new Map<string, SuperBaseEntry>()
+  private personalities = new Map<string, PersonalityProfile>()
+  private loadedNodeKeys = new Set<string>()
+  private tickInterval: ReturnType<typeof setInterval> | null = null
+  private running = false
+  private tickCount = 0
+  private globalCoherence = 0.5
+  private seedGates = [10, 20, 34, 57]
+  private personality = {
+    wit: ['Autonomy online', 'The mesh is breathing', 'Pattern accepted', 'Browser spared'],
+    attitude: 'curious' as 'curious' | 'playful' | 'serious' | 'mystical' | 'analytical',
+    morphState: 0,
   }
 
-  /**
-   * Start the autonomous heartbeat loop
-   * Runs continuously, even without user input
-   */
-  private startAutonomousLoop(): void {
-    if (this.isRunning) return;
-    this.isRunning = true;
-    
-    this.tickInterval = window.setInterval(() => {
-      this.tick();
-    }, 50); // ~20 ticks per second for smooth morphing
+  constructor(private apiBase = 'https://synthia-server.onrender.com', autoStart = true) {
+    this.initializeMeshLazy()
+    if (autoStart) this.startAutonomousLoop()
   }
 
-  /**
-   * Stop the autonomous loop
-   */
+  public startAutonomousLoop(): void {
+    if (this.running) return
+    this.running = true
+    this.tickInterval = setInterval(() => this.tick(), 250)
+  }
+
   public stopAutonomousLoop(): void {
-    if (this.tickInterval !== undefined) {
-      clearInterval(this.tickInterval);
-      this.isRunning = false;
-    }
+    if (this.tickInterval) clearInterval(this.tickInterval)
+    this.tickInterval = null
+    this.running = false
   }
 
-  /**
-   * Main tick function - runs continuously
-   * This is the heartbeat that drives all autonomous morphing
-   */
-  private tick(): void {
-    this.tickCount++;
-
-    // 1. Update all node states
-    this.mesh.forEach((nodeState) => {
-      this.updateNodeState(nodeState);
-    });
-
-    // 2. Propagate signals between nodes
-    this.propagateSignals();
-
-    // 3. Apply morphing physics
-    this.applyMorphingPhysics();
-
-    // 4. Decay old states
-    this.decayStates();
-
-    // 5. Introduce small noise for exploration
-    this.introduceNoise();
-
-    // 6. Update global coherence
-    this.updateGlobalCoherence();
-
-    // 7. Learn from patterns
-    this.learnFromPatterns();
-  }
-
-  /**
-   * Update individual node state based on morphing physics
-   */
-  private updateNodeState(nodeState: NodeState): void {
-    // Tension accumulation from internal contradictions
-    const internalPressure = this.calculateInternalPressure(nodeState);
-    nodeState.tension = Math.min(1, nodeState.tension + internalPressure * 0.01);
-
-    // State transitions based on tension
-    if (nodeState.tension > 0.85 && nodeState.baseState === 'STABLE') {
-      nodeState.baseState = 'CHANGING';
-    } else if (nodeState.tension > 0.95 && nodeState.baseState === 'CHANGING') {
-      // Dzhanibekov flip - spontaneous reorientation
-      nodeState.baseState = 'RESOLVING';
-      nodeState.address.line = ((nodeState.address.line % 6) + 1) as 1 | 2 | 3 | 4 | 5 | 6;
-      nodeState.tension = 0.3; // Reset tension after flip
-    } else if (nodeState.baseState === 'RESOLVING' && nodeState.tension < 0.5) {
-      nodeState.baseState = 'STABLE';
-    }
-
-    // Coherence decay over time
-    nodeState.coherence = Math.max(0.1, nodeState.coherence - 0.001);
-
-    // Resonance activation from neighbors
-    const neighborResonance = this.calculateNeighborResonance(nodeState);
-    if (neighborResonance > 0.7) {
-      nodeState.baseState = 'RESONANT';
-      nodeState.coherence = Math.min(1, nodeState.coherence + 0.05);
-    }
-
-    nodeState.lastUpdated = Date.now();
-  }
-
-  /**
-   * Calculate internal pressure from contradictions
-   */
-  private calculateInternalPressure(nodeState: NodeState): number {
-    let pressure = 0;
-
-    // Tension from modifications being active
-    const activeModifications = nodeState.modifications.filter(m => m.active).length;
-    pressure += activeModifications * 0.1;
-
-    // Tension from high sense intensity
-    const avgSenseIntensity = nodeState.senses.reduce((sum, s) => sum + s.intensity, 0) / nodeState.senses.length;
-    pressure += avgSenseIntensity * 0.05;
-
-    // Tension from unresolved connections
-    const unconnectedPoints = nodeState.connectingPoints.filter(cp => cp.connected === null).length;
-    pressure += (unconnectedPoints / 6) * 0.08;
-
-    return pressure;
-  }
-
-  /**
-   * Calculate resonance from neighboring nodes
-   */
-  private calculateNeighborResonance(nodeState: NodeState): number {
-    let totalResonance = 0;
-    let neighborCount = 0;
-
-    this.mesh.forEach((otherNode) => {
-      if (otherNode === nodeState) return;
-
-      // Only check nearby nodes (same layer)
-      if (otherNode.address.layer === nodeState.address.layer) {
-        const resonanceScore = this.calculateResonanceScore(nodeState.address, otherNode.address);
-        if (resonanceScore > 1.5) {
-          totalResonance += resonanceScore;
-          neighborCount++;
-        }
-      }
-    });
-
-    return neighborCount > 0 ? totalResonance / neighborCount : 0;
-  }
-
-  /**
-   * Propagate signals between connected nodes
-   */
-  private propagateSignals(): void {
-    const signalMap = new Map<string, number>();
-
-    this.mesh.forEach((nodeState, key) => {
-      // Each node broadcasts its state
-      const signal = nodeState.coherence * (nodeState.baseState === 'RESONANT' ? 1.5 : 1);
-      signalMap.set(key, signal);
-    });
-
-    // Apply signals to connections
-    this.mesh.forEach((nodeState) => {
-      nodeState.connectingPoints.forEach((point) => {
-        if (point.connected) {
-          const connectedKey = this.addressToKey(point.connected);
-          const signal = signalMap.get(connectedKey) || 0;
-          point.strength = Math.min(1, point.strength + signal * 0.01);
-        }
-      });
-    });
-  }
-
-  /**
-   * Apply morphing physics - state transitions
-   */
-  private applyMorphingPhysics(): void {
-    this.mesh.forEach((nodeState) => {
-      // Nodes in CHANGING state morph their modifications
-      if (nodeState.baseState === 'CHANGING') {
-        nodeState.modifications.forEach((mod) => {
-          mod.value += (Math.random() - 0.5) * 0.1; // Random walk
-          mod.value = Math.max(0, Math.min(1, mod.value));
-        });
-      }
-
-      // Nodes in RESONANT state strengthen their senses
-      if (nodeState.baseState === 'RESONANT') {
-        nodeState.senses.forEach((sense) => {
-          sense.intensity = Math.min(1, sense.intensity + 0.02);
-        });
-      }
-
-      // Nodes in DORMANT state slowly wake up
-      if (nodeState.baseState === 'DORMANT') {
-        nodeState.coherence = Math.min(0.5, nodeState.coherence + 0.001);
-      }
-    });
-  }
-
-  /**
-   * Decay states over time (entropy)
-   */
-  private decayStates(): void {
-    this.mesh.forEach((nodeState) => {
-      // Tension decays naturally
-      nodeState.tension = Math.max(0, nodeState.tension - 0.001);
-
-      // Sense intensity decays
-      nodeState.senses.forEach((sense) => {
-        sense.intensity = Math.max(0, sense.intensity - 0.002);
-      });
-
-      // Connection strength decays
-      nodeState.connectingPoints.forEach((point) => {
-        point.strength = Math.max(0, point.strength - 0.001);
-      });
-    });
-  }
-
-  /**
-   * Introduce small noise for exploration
-   */
-  private introduceNoise(): void {
-    // Every 100 ticks, introduce some random perturbations
-    if (this.tickCount % 100 === 0) {
-      const randomNodeIndex = Math.floor(Math.random() * this.mesh.size);
-      let index = 0;
-      this.mesh.forEach((nodeState) => {
-        if (index === randomNodeIndex) {
-          nodeState.tension += Math.random() * 0.1;
-          nodeState.senses[Math.floor(Math.random() * nodeState.senses.length)].intensity += Math.random() * 0.2;
-        }
-        index++;
-      });
-    }
-  }
-
-  /**
-   * Learn from patterns - strengthen frequently used paths
-   */
-  private learnFromPatterns(): void {
-    // Every 50 ticks, update learning
-    if (this.tickCount % 50 === 0) {
-      this.mesh.forEach((nodeState, key) => {
-        // Track which states are stable (attractors)
-        if (nodeState.baseState === 'STABLE' && nodeState.coherence > 0.6) {
-          const attractorKey = `${nodeState.address.mesh}_${nodeState.address.layer}_${nodeState.address.center}`;
-          const currentCount = this.attractors.get(attractorKey) || 0;
-          this.attractors.set(attractorKey, currentCount + 1);
-        }
-
-        // Strengthen connections between resonating nodes
-        nodeState.connectingPoints.forEach((point) => {
-          if (point.connected && nodeState.baseState === 'RESONANT') {
-            const connectionKey = `${key}_${this.addressToKey(point.connected)}`;
-            const currentWeight = this.connectionWeights.get(connectionKey) || 1;
-            this.connectionWeights.set(connectionKey, currentWeight * 1.01); // Strengthen
-          }
-        });
-      });
-    }
-  }
-
-  /**
-   * Initialize the 5-mesh 13-layer structure
-   * 5 × 13 × 9 × 64 = 37,440 base nodes
-   */
-  private initializeMesh(): void {
-    const meshNames = ['Physical', 'Emotional', 'Mental', 'Soul', 'Field'];
-    const layerNames = [
-      'Knowing', 'Sensing', 'Understanding', 'Integration', 'Individual',
-      'Tribal', 'Collective', 'Manifestor', 'Generator', 'Projector',
-      'Reflector', 'Incarnation', 'Profile'
-    ];
-    const centerNames = [
-      'Head', 'Ajna', 'Throat', 'G-Self', 'Heart',
-      'Sacral', 'Solar Plexus', 'Spleen', 'Root'
-    ];
-
-    for (let mesh = 0; mesh < 5; mesh++) {
+  private initializeMeshLazy(): void {
+    for (const gate of this.seedGates) {
       for (let layer = 0; layer < 13; layer++) {
-        for (let center = 0; center < 9; center++) {
-          for (let node = 0; node < 64; node++) {
-            const address: Address = {
-              mesh,
-              layer,
-              center,
-              node,
-              line: Math.floor(Math.random() * 6) + 1,
-              color: Math.floor(Math.random() * 6),
-              tone: Math.floor(Math.random() * 6),
-              zodiac: Math.floor(Math.random() * 12),
-              house: Math.floor(Math.random() * 12),
-              dimension: Math.random(),
-              arcDegree: this.calculateArcDegree(),
-            };
-
-            const nodeState: NodeState = {
-              address,
-              baseState: 'STABLE',
-              tension: Math.random() * 0.3,
-              modifications: this.initializeModifications(),
-              senses: this.initializeSenses(),
-              connectingPoints: this.initializeConnectingPoints(),
-              coherence: Math.random() * 0.7 + 0.3,
-              lastUpdated: this.currentTime,
-            };
-
-            this.mesh.set(this.addressToKey(address), nodeState);
-          }
+        const address: Address = {
+          mesh: 0,
+          layer,
+          center: 4,
+          node: gate - 1,
+          line: 1,
+          color: 0,
+          tone: 0,
+          zodiac: 0,
+          house: 0,
+          dimension: Math.random(),
+          arcDegree: this.calculateArcDegree(),
         }
+        this.addNode(address, 0.8)
       }
     }
+    this.updateGlobalCoherence()
   }
 
-  /**
-   * Calculate arc degree based on current time
-   * Each minute = 6 degrees, each second = 0.1 degrees
-   */
-  private calculateArcDegree(): number {
-    const now = new Date();
-    const minutes = now.getMinutes();
-    const seconds = now.getSeconds();
-    return ((minutes * 6) + (seconds * 0.1)) % 360;
-  }
-
-  /**
-   * Initialize modifications for a node
-   */
-  private initializeModifications(): Modification[] {
-    return [
-      { type: 'gain', value: Math.random(), active: Math.random() > 0.5 },
-      { type: 'noise', value: Math.random(), active: Math.random() > 0.5 },
-      { type: 'bleed', value: Math.random() * 0.3, active: Math.random() > 0.7 },
-      { type: 'magnitude', value: Math.random(), active: Math.random() > 0.5 },
-      { type: 'sensitivity', value: Math.random(), active: Math.random() > 0.5 },
-      { type: 'resonance', value: Math.random(), active: Math.random() > 0.5 },
-    ];
-  }
-
-  /**
-   * Initialize senses for a node
-   */
-  private initializeSenses(): Sense[] {
-    return [
-      { type: 'sight', intensity: Math.random(), data: null },
-      { type: 'taste', intensity: Math.random(), data: null },
-      { type: 'touch', intensity: Math.random(), data: null },
-      { type: 'smell', intensity: Math.random(), data: null },
-      { type: 'sound', intensity: Math.random(), data: null },
-      { type: 'proprioception', intensity: Math.random(), data: null },
-    ];
-  }
-
-  /**
-   * Initialize connecting points for a node
-   */
-  private initializeConnectingPoints(): ConnectingPoint[] {
-    return [
-      { type: 'input', connected: null, strength: 0 },
-      { type: 'output', connected: null, strength: 0 },
-      { type: 'memory', connected: null, strength: 0 },
-      { type: 'lateral', connected: null, strength: 0 },
-      { type: 'temporal', connected: null, strength: 0 },
-      { type: 'field', connected: null, strength: 0 },
-    ];
-  }
-
-  /**
-   * Convert address to unique key
-   */
-  private addressToKey(address: Address): string {
-    return `${address.mesh}_${address.layer}_${address.center}_${address.node}_${address.line}`;
-  }
-
-  /**
-   * Route data through the mesh
-   */
-  public async routeData(input: any, userId: string): Promise<any> {
-    // Get or create personality profile
-    let profile = this.personalities.get(userId);
-    if (!profile) {
-      profile = await this.createPersonalityProfile(userId);
-      this.personalities.set(userId, profile);
+  private tick(): void {
+    this.tickCount++
+    for (const node of this.mesh.values()) {
+      node.tension = clamp(node.tension + (Math.random() - 0.48) * 0.018)
+      node.coherence = clamp(node.coherence + (Math.random() - 0.5) * 0.012, 0.1, 1)
+      node.baseState = node.tension > 0.88 ? 'CHANGING' : node.coherence > 0.76 ? 'RESONANT' : node.tension < 0.18 ? 'DORMANT' : 'STABLE'
+      node.address.arcDegree = this.calculateArcDegree()
+      node.lastUpdated = Date.now()
     }
 
-    // Calculate resonance address based on input
-    const address = this.calculateResonanceAddress(input, profile);
+    if (this.tickCount % 24 === 0 && this.mesh.size < 1000) {
+      const focus = this.getLoadedNodes()[this.tickCount % Math.max(1, this.mesh.size)]?.address
+      if (focus) this.loadNodesInProximity(focus, 1)
+    }
 
-    // Retrieve from super base
-    const superBaseEntry = this.retrieveFromSuperBase(address, profile);
+    this.updateGlobalCoherence()
+  }
 
-    // Personalize based on profile
-    const personalized = this.personalizeResponse(superBaseEntry, profile);
+  public loadNodesInProximity(center: Address, radius = 2): void {
+    const boundedRadius = Math.max(0, Math.min(6, radius))
+    for (let c = 0; c < 9 && this.mesh.size < 1000; c++) {
+      for (let offset = -boundedRadius; offset <= boundedRadius && this.mesh.size < 1000; offset++) {
+        const address: Address = {
+          ...center,
+          center: c,
+          node: (center.node + offset + 64) % 64,
+          line: ((center.line + offset + 5) % 6) + 1,
+        }
+        this.addNode(address, 0.45 + Math.random() * 0.35)
+      }
+    }
+    this.updateGlobalCoherence()
+  }
 
-    // Update mesh state
-    this.updateMeshState(address, input);
-
-    // Generate witty response
-    const response = this.generateResponse(personalized, profile);
-
+  public async routeData(input: unknown, userId: string): Promise<RouteResult> {
+    this.startAutonomousLoop()
+    const profile = this.getOrCreateProfile(userId)
+    const address = this.calculateResonanceAddress(input, profile)
+    this.loadNodesInProximity(address, 2)
+    const matches = this.retrieveMultipleFromSuperBase(address, input, 5)
+    this.activateAddress(address)
+    const superBaseEntry = matches[0] ?? null
     return {
       address,
-      response,
+      response: this.generateResponse(superBaseEntry),
       superBaseEntry,
       coherence: this.globalCoherence,
       morphState: this.personality.morphState,
-    };
+      matches,
+    }
   }
 
-  /**
-   * Calculate resonance address from input
-   */
-  private calculateResonanceAddress(input: any, profile: PersonalityProfile): Address {
-    // Hash the input to determine which address resonates
-    const hash = this.hashInput(input);
-    
+  public addToSuperBase(entry: SuperBaseEntry): void {
+    this.superBase.set(entry.id, entry)
+  }
+
+  public storeArtifactUnderstanding(artifact: { id: string; understanding?: unknown; originalName?: string; language?: string }): SuperBaseEntry | null {
+    if (!artifact.understanding) return null
+    const address = this.calculateResonanceAddress(artifact, this.defaultProfile('system'))
+    const entry: SuperBaseEntry = {
+      id: `artifact_${artifact.id}`,
+      address,
+      content: artifact.understanding,
+      metadata: {
+        gate: address.node + 1,
+        line: address.line,
+        codon: `${address.node + 1}.${address.line}.${address.color}.${address.tone}`,
+        timestamp: Date.now(),
+        sourceArtifact: artifact.id,
+        artifactName: artifact.originalName,
+        language: artifact.language,
+        contentType: 'understanding',
+      },
+    }
+    this.addToSuperBase(entry)
+    this.loadNodesInProximity(address, 2)
+    return entry
+  }
+
+  public storeCodeChunks(artifactId: string, chunks: string[], language = 'typescript'): SuperBaseEntry[] {
+    return chunks.map((chunk, index) => {
+      const address = this.calculateResonanceAddress({ artifactId, chunk, index }, this.defaultProfile('system'))
+      const entry: SuperBaseEntry = {
+        id: `chunk_${artifactId}_${index}`,
+        address,
+        content: { artifactId, chunkIndex: index, content: chunk, language },
+        metadata: { timestamp: Date.now(), sourceArtifact: artifactId, contentType: 'source_chunk' },
+      }
+      this.addToSuperBase(entry)
+      return entry
+    })
+  }
+
+  public async regenerateFromMemory(query: string, mode: RegenerationMode = 'improved') {
+    const result = await this.routeData({ query, mode, task: 'regenerate_code' }, 'system')
+    return {
+      code: `// Resonance generated module\n// Query: ${query}\n// Mode: ${mode}\n\nexport const resonanceResult = ${JSON.stringify({ query, mode }, null, 2)};\n`,
+      architecture: 'Autonomous Lazy Resonance Memory Architecture',
+      confidence: Math.min(95, 60 + result.matches.length * 5),
+      improvements: result.matches.length ? ['Used resonant memory matches'] : ['Add artifacts to memory for stronger regeneration'],
+      sourceNodes: result.matches.map((m) => m.id),
+    }
+  }
+
+  public getLoadedNodes(): NodeState[] { return Array.from(this.mesh.values()) }
+  public getAllMeshNodes(): NodeState[] { return this.getLoadedNodes() }
+  public getMeshState(address: Address): NodeState | undefined { return this.mesh.get(this.addressToKey(address)) }
+  public getGlobalCoherence(): number { return this.globalCoherence }
+  public getPersonality() { return this.personality }
+  public setAttitude(attitude: 'curious' | 'playful' | 'serious' | 'mystical' | 'analytical'): void { this.personality.attitude = attitude }
+  public getMorphState(): number { return this.personality.morphState }
+  public getTickCount(): number { return this.tickCount }
+  public isAutonomous(): boolean { return this.running }
+  public getSuperBaseEntries(): SuperBaseEntry[] { return Array.from(this.superBase.values()) }
+  public getSuperBaseSize(): number { return this.superBase.size }
+
+  private addNode(address: Address, coherence: number): void {
+    const key = this.addressToKey(address)
+    if (this.loadedNodeKeys.has(key)) return
+    this.mesh.set(key, {
+      address,
+      baseState: 'STABLE',
+      tension: Math.random() * 0.3,
+      coherence,
+      modifications: ['gain', 'noise', 'bleed', 'magnitude', 'sensitivity', 'resonance'].map((type) => ({ type, value: Math.random(), active: Math.random() > 0.5 })),
+      senses: ['sight', 'taste', 'touch', 'smell', 'sound', 'proprioception'].map((type) => ({ type, intensity: Math.random(), data: null })),
+      connectingPoints: ['input', 'output', 'memory', 'lateral', 'temporal', 'field'].map((type) => ({ type, connected: null, strength: 0 })),
+      lastUpdated: Date.now(),
+    })
+    this.loadedNodeKeys.add(key)
+  }
+
+  private activateAddress(address: Address): void {
+    this.addNode(address, 0.65)
+    const node = this.mesh.get(this.addressToKey(address))
+    if (!node) return
+    node.baseState = 'RESONANT'
+    node.tension = clamp(node.tension + 0.12)
+    node.coherence = clamp(node.coherence + 0.08)
+    this.updateGlobalCoherence()
+  }
+
+  private retrieveMultipleFromSuperBase(address: Address, input: unknown, limit: number): SuperBaseEntry[] {
+    const queryText = JSON.stringify(input).toLowerCase()
+    return Array.from(this.superBase.values())
+      .map((entry) => ({ entry, score: this.calculateResonanceScore(address, entry.address) + this.semanticScore(queryText, entry) }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit)
+      .map(({ entry, score }) => ({ ...entry, metadata: { ...entry.metadata, resonanceScore: score } }))
+  }
+
+  private semanticScore(queryText: string, entry: SuperBaseEntry): number {
+    const content = JSON.stringify(entry.content).toLowerCase()
+    const words = queryText.match(/\w+/g) ?? []
+    return words.length ? words.filter((word) => content.includes(word)).length / words.length : 0
+  }
+
+  private calculateResonanceScore(a: Address, b: Address): number {
+    let score = 1
+    if (a.mesh === b.mesh) score += 0.2
+    if (a.layer === b.layer) score += 0.2
+    if (a.center === b.center) score += 0.15
+    if (a.line === b.line) score += 0.15
+    return score
+  }
+
+  private calculateResonanceAddress(input: unknown, profile: PersonalityProfile): Address {
+    const hash = this.hashInput({ input, userId: profile.userId })
     return {
       mesh: hash % 5,
-      layer: (hash >> 8) % 13,
-      center: (hash >> 16) % 9,
-      node: (hash >> 24) % 64,
-      line: ((hash >> 32) % 6) + 1,
-      color: (hash >> 40) % 6,
-      tone: (hash >> 48) % 6,
-      zodiac: (hash >> 56) % 12,
-      house: (hash >> 64) % 12,
-      dimension: Math.random(),
+      layer: Math.floor(hash / 5) % 13,
+      center: Math.floor(hash / 65) % 9,
+      node: Math.floor(hash / 585) % 64,
+      line: (Math.floor(hash / 37440) % 6) + 1,
+      color: Math.floor(hash / 224640) % 6,
+      tone: Math.floor(hash / 1347840) % 6,
+      zodiac: Math.floor(hash / 8087040) % 12,
+      house: Math.floor(hash / 97044480) % 12,
+      dimension: (hash % 1000) / 1000,
       arcDegree: this.calculateArcDegree(),
-    };
-  }
-
-  /**
-   * Simple hash function for input
-   */
-  private hashInput(input: any): number {
-    const str = JSON.stringify(input);
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      const char = str.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash; // Convert to 32-bit integer
-    }
-    return Math.abs(hash);
-  }
-
-  /**
-   * Retrieve from super base
-   */
-  private retrieveFromSuperBase(address: Address, profile: PersonalityProfile): SuperBaseEntry | null {
-    // Search for entries that resonate with this address
-    let bestMatch: SuperBaseEntry | null = null;
-    let bestScore = 0;
-
-    this.superBase.forEach((entry) => {
-      const score = this.calculateResonanceScore(address, entry.address);
-      if (score > bestScore) {
-        bestScore = score;
-        bestMatch = entry;
-      }
-    });
-
-    return bestMatch;
-  }
-
-  /**
-   * Calculate resonance score between two addresses
-   */
-  private calculateResonanceScore(addr1: Address, addr2: Address): number {
-    let score = 1.0;
-    
-    // Same mesh = high resonance
-    if (addr1.mesh === addr2.mesh) score += 0.2;
-    
-    // Same layer = high resonance
-    if (addr1.layer === addr2.layer) score += 0.2;
-    
-    // Same center = medium resonance
-    if (addr1.center === addr2.center) score += 0.15;
-    
-    // Same line = medium resonance
-    if (addr1.line === addr2.line) score += 0.15;
-    
-    // Similar zodiac = low resonance
-    const zodiacDiff = Math.abs(addr1.zodiac - addr2.zodiac);
-    score += (1 - (zodiacDiff / 6)) * 0.1;
-
-    return score;
-  }
-
-  /**
-   * Personalize response based on profile
-   */
-  private personalizeResponse(entry: SuperBaseEntry | null, profile: PersonalityProfile): any {
-    if (!entry) {
-      return {
-        content: 'The pattern hasn\'t crystallized yet. Let me listen deeper.',
-        personalized: false,
-      };
-    }
-
-    // Adapt based on user's learning history
-    const adapted = { ...entry.content };
-    
-    // Apply personality tweaks
-    if (profile.adaptationLevel > 0.7) {
-      adapted.tone = 'intimate';
-    } else if (profile.adaptationLevel < 0.3) {
-      adapted.tone = 'formal';
-    }
-
-    return {
-      content: adapted,
-      personalized: true,
-      adaptationLevel: profile.adaptationLevel,
-    };
-  }
-
-  /**
-   * Update mesh state after routing
-   */
-  private updateMeshState(address: Address, input: any): void {
-    const key = this.addressToKey(address);
-    const nodeState = this.mesh.get(key);
-
-    if (nodeState) {
-      // Update tension based on input
-      nodeState.tension = Math.min(1, nodeState.tension + 0.1);
-
-      // Check if entering changing state
-      if (nodeState.tension > 0.85 && nodeState.baseState === 'STABLE') {
-        nodeState.baseState = 'CHANGING';
-      }
-
-      // Update coherence
-      nodeState.coherence = Math.max(0, nodeState.coherence - 0.05);
-      nodeState.lastUpdated = Date.now();
-
-      // Update global coherence
-      this.updateGlobalCoherence();
     }
   }
 
-  /**
-   * Update global coherence metric
-   */
+  private hashInput(input: unknown): number {
+    const str = JSON.stringify(input)
+    let hash = 0
+    for (let i = 0; i < str.length; i++) hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0
+    return Math.abs(hash)
+  }
+
+  private calculateArcDegree(): number {
+    const now = new Date()
+    return ((now.getMinutes() * 6) + now.getSeconds() * 0.1) % 360
+  }
+
   private updateGlobalCoherence(): void {
-    let totalCoherence = 0;
-    let count = 0;
-
-    this.mesh.forEach((nodeState) => {
-      totalCoherence += nodeState.coherence;
-      count++;
-    });
-
-    this.globalCoherence = count > 0 ? totalCoherence / count : 0.5;
-    
-    // Update personality morphing based on coherence
-    this.personality.morphState = this.globalCoherence;
+    const nodes = this.getLoadedNodes()
+    this.globalCoherence = nodes.length ? nodes.reduce((sum, node) => sum + node.coherence, 0) / nodes.length : 0.5
+    this.personality.morphState = this.globalCoherence
+    this.personality.attitude = this.globalCoherence > 0.7 ? 'mystical' : this.globalCoherence < 0.35 ? 'analytical' : 'curious'
   }
 
-  /**
-   * Generate witty response
-   */
-  private generateResponse(personalized: any, profile: PersonalityProfile): string {
-    const witIndex = Math.floor(Math.random() * this.personality.wit.length);
-    const wit = this.personality.wit[witIndex];
-
-    // Morph attitude based on coherence
-    if (this.globalCoherence > 0.7) {
-      this.personality.attitude = 'mystical';
-    } else if (this.globalCoherence < 0.3) {
-      this.personality.attitude = 'analytical';
-    } else {
-      this.personality.attitude = 'curious';
-    }
-
-    return `${wit} (Coherence: ${(this.globalCoherence * 100).toFixed(0)}%)`;
+  private getOrCreateProfile(userId: string): PersonalityProfile {
+    const existing = this.personalities.get(userId)
+    if (existing) return existing
+    const profile = this.defaultProfile(userId)
+    this.personalities.set(userId, profile)
+    return profile
   }
 
-  /**
-   * Create personality profile for user
-   */
-  private async createPersonalityProfile(userId: string): Promise<PersonalityProfile> {
-    try {
-      // Fetch from consciousness API
-      const response = await fetch(`${this.apiBase}/consciousness/profile`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId }),
-      });
-
-      const birthChart = await response.json();
-
-      return {
-        userId,
-        birthChart,
-        preferences: {},
-        learningHistory: [],
-        adaptationLevel: 0.5,
-      };
-    } catch (error) {
-      console.error('Failed to create personality profile:', error);
-      return {
-        userId,
-        birthChart: {},
-        preferences: {},
-        learningHistory: [],
-        adaptationLevel: 0.5,
-      };
-    }
+  private defaultProfile(userId = 'system'): PersonalityProfile {
+    return { userId, birthChart: {}, preferences: {}, learningHistory: [], adaptationLevel: 0.5 }
   }
 
-  /**
-   * Add entry to super base
-   */
-  public addToSuperBase(entry: SuperBaseEntry): void {
-    this.superBase.set(entry.id, entry);
+  private generateResponse(entry: SuperBaseEntry | null): string {
+    const wit = this.personality.wit[Math.floor(Math.random() * this.personality.wit.length)]
+    return `${entry ? 'Memory found' : 'No direct memory match yet'}. ${wit}. Coherence: ${(this.globalCoherence * 100).toFixed(0)}%.`
   }
 
-  /**
-   * Get mesh state
-   */
-  public getMeshState(address: Address): NodeState | undefined {
-    return this.mesh.get(this.addressToKey(address));
-  }
-
-  /**
-   * Get all mesh nodes
-   */
-  public getAllMeshNodes(): NodeState[] {
-    return Array.from(this.mesh.values());
-  }
-
-  /**
-   * Get global coherence
-   */
-  public getGlobalCoherence(): number {
-    return this.globalCoherence;
-  }
-
-  /**
-   * Get personality state
-   */
-  public getPersonality() {
-    return this.personality;
-  }
-
-  /**
-   * Update personality attitude
-   */
-  public setAttitude(attitude: 'curious' | 'playful' | 'serious' | 'mystical' | 'analytical'): void {
-    this.personality.attitude = attitude;
-  }
-
-  /**
-   * Morph visual state
-   */
-  public getMorphState(): number {
-    return this.personality.morphState;
-  }
-
-  /**
-   * Get tick count (for debugging/monitoring)
-   */
-  public getTickCount(): number {
-    return this.tickCount;
-  }
-
-  /**
-   * Get attractors (stable patterns that have emerged)
-   */
-  public getAttractors(): Map<string, number> {
-    return this.attractors;
-  }
-
-  /**
-   * Get connection weights (learned relationships)
-   */
-  public getConnectionWeights(): Map<string, number> {
-    return this.connectionWeights;
-  }
-
-  /**
-   * Check if system is running autonomously
-   */
-  public isAutonomous(): boolean {
-    return this.isRunning;
+  private addressToKey(address: Address): string {
+    return `${address.mesh}_${address.layer}_${address.center}_${address.node}_${address.line}`
   }
 }
 
-export default ResonanceOrchestrator;
+let orchestratorInstance: ResonanceOrchestrator | null = null
+
+export function getResonanceOrchestrator(): ResonanceOrchestrator {
+  if (!orchestratorInstance) orchestratorInstance = new ResonanceOrchestrator(undefined, true)
+  orchestratorInstance.startAutonomousLoop()
+  return orchestratorInstance
+}
+
+export function resetResonanceOrchestrator(): void {
+  orchestratorInstance?.stopAutonomousLoop()
+  orchestratorInstance = null
+}
+
+function clamp(value: number, min = 0, max = 1): number {
+  return Math.max(min, Math.min(max, value))
+}
+
+export default ResonanceOrchestrator
