@@ -1,0 +1,54 @@
+name: Build Resonance Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [android-apk-build]
+    paths:
+      - "client/**"
+      - "shared/**"
+      - "patches/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "vite.config.ts"
+      - "capacitor.config.ts"
+      - ".github/workflows/android-apk.yml"
+
+jobs:
+  android-apk:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: "10.4.1"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build existing Field frontend
+        run: pnpm exec vite build
+      - name: Install Android packaging tools without modifying package manifest
+        run: pnpm add --ignore-workspace-root-check --no-save --config.frozen-lockfile=false @capacitor/core@7 @capacitor/cli@7 @capacitor/android@7
+      - name: Generate Android project from existing frontend
+        run: |
+          pnpm exec cap add android
+          pnpm exec cap sync android
+      - name: Compile debug APK
+        working-directory: android
+        run: bash ./gradlew assembleDebug
+      - name: Upload installable debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: resonance-neural-net-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
