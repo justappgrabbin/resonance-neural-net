@@ -1,3 +1,4 @@
+import DistributionCenterPanel from '@/components/DistributionCenterPanel'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import NeuralMeshVisualizer from '@/components/NeuralMeshVisualizer'
 import ResonanceOrchestrator from '@/lib/orchestrator'
@@ -123,6 +124,7 @@ export default function Home() {
         <form onSubmit={ask} className="space-y-3"><textarea value={input} onChange={(event) => setInput(event.target.value)} placeholder="Speak to the field..." className="min-h-24 w-full resize-none rounded-3xl border border-[#8b5cf6]/25 bg-[#05030a]/90 p-3 text-sm text-[#f3e8ff] placeholder:text-[#b79ad6]/45 outline-none focus:border-[#14f1d9]/70 focus:ring-2 focus:ring-[#14f1d9]/20" /><button className="w-full rounded-3xl bg-gradient-to-r from-[#8b5cf6] via-[#c084fc] to-[#14f1d9] py-3 font-black text-[#05030a] shadow-[0_0_24px_rgba(139,92,246,.28)] transition hover:brightness-110" type="submit">Send to MRNN</button></form>
         {response && <div className="mt-4 rounded-3xl border border-[#14f1d9]/25 bg-[#14f1d9]/6 p-3 text-sm text-[#f3e8ff]/90 shadow-[0_0_24px_rgba(20,241,217,.12)]">{response}</div>}
       </section>
+      <div className="relative z-20 mt-[95vh]"><DistributionCenterPanel /></div>
     </div>
   )
 }
