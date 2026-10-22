@@ -24,3 +24,24 @@ export async function inspectSynthAi2(base: string, fetcher: typeof fetch = fetc
     apps: Array.isArray(appList) ? appList : [],
     details: status.message || 'Runtime responded' };
 }
+
+export type MountedApp = { id: string; name: string; status?: string; runCommand?: string; files?: string[] };
+export type AppRun = { id?: string; code: number | null; timedOut?: boolean; command?: string; at?: string; stdout?: string; stderr?: string };
+export async function listSynthAi2Apps(base: string, fetcher: typeof fetch = fetch): Promise<MountedApp[]> {
+  const data = await readJson(endpoint(base, 'api/apps'), fetcher) as { success?: boolean; apps?: MountedApp[] };
+  if (data.success !== true || !Array.isArray(data.apps)) throw new Error('Invalid app runner response');
+  return data.apps.filter(a => a && typeof a.id === 'string' && typeof a.name === 'string');
+}
+export async function readSynthAi2Runs(base: string, appId: string, fetcher: typeof fetch = fetch): Promise<AppRun[]> {
+  if (!/^[a-zA-Z0-9._-]+$/.test(appId)) throw new Error('Invalid app ID');
+  const data = await readJson(endpoint(base, 'api/apps/' + encodeURIComponent(appId) + '/runs'), fetcher) as { success?: boolean; runs?: AppRun[] };
+  if (data.success !== true || !Array.isArray(data.runs)) throw new Error('Invalid run history response');
+  return data.runs;
+}
+export function assessAppRun(runs: AppRun[]): { passed: boolean; reason: string } {
+  const latest = runs[0];
+  if (!latest) return { passed: false, reason: 'No recorded execution' };
+  if (latest.timedOut) return { passed: false, reason: 'Last run timed out' };
+  if (latest.code !== 0) return { passed: false, reason: 'Last run exited with code ' + latest.code };
+  return { passed: true, reason: 'Last recorded process exited successfully (not a functional test)' };
+}
